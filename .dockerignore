@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+.env*.local
+*.md
+.vscode
+.claude
+media
+test-results
+playwright-report
+blob-report
+coverage
+.pnpm-store
+.DS_Store

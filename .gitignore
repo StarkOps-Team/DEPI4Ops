@@ -49,5 +49,3 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /.pnpm-store
-/Dockerfile
-/docker-compose.yml
