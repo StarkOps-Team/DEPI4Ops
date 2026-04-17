@@ -59,9 +59,10 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Test Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE} -f Dockerfile ."
+                // Build up to the 'builder' stage which has all deps (cross-env, vitest, etc.)
+                sh "docker build -t ${DOCKER_IMAGE}:test --target builder -f Dockerfile ."
             }
         }
 
@@ -73,9 +74,21 @@ pipeline {
                         -e CI=true \
                         -e DATABASE_URL=${DATABASE_URL} \
                         -e PAYLOAD_SECRET=${PAYLOAD_SECRET} \
-                        ${DOCKER_IMAGE} \
+                        ${DOCKER_IMAGE}:test \
                         npm run test:int
                 """
+            }
+        }
+
+        stage('Build Production Image') {
+            steps {
+                sh "docker build -t ${DOCKER_IMAGE} -f Dockerfile ."
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh "docker push ${DOCKER_IMAGE}"
             }
         }
     }
