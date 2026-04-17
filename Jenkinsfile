@@ -91,6 +91,15 @@ pipeline {
                 sh "docker push ${DOCKER_IMAGE}"
             }
         }
+
+        stage('Artifactory') {
+            steps {
+                // Create deployment package excluding git files
+                sh "zip -r deploy.zip . -x '*.git*'"
+                // Archive the artifact in Jenkins
+                archiveArtifacts artifacts: 'deploy.zip', fingerprint: true
+            }
+        }
     }
 
     post {
