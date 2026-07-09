@@ -1,0 +1,17 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "depi4ops.labels" . | nindent 4 }}
+    app: alertmanager
+spec:
+  selector:
+    app: alertmanager
+  ports:
+    - name: http
+      port: 9093
+      targetPort: 9093
+{{- end }}

@@ -83,3 +83,51 @@ mongo:
 secret:
   databaseUrl: "mongodb://mongo:27017/StarkOps"
   payloadSecret: "5fc2dc3269d77fcd43e46ef5"
+
+# ──────────────────────────────────────────────
+# Monitoring  (Prometheus + Alertmanager)
+# ──────────────────────────────────────────────
+monitoring:
+  enabled: true
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    pullPolicy: IfNotPresent
+    retention: 15d
+    resources: {}
+
+  kubeStateMetrics:
+    image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0
+    pullPolicy: IfNotPresent
+    resources: {}
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    pullPolicy: IfNotPresent
+    resources: {}
+
+  # ── SMTP / email settings ──────────────────
+  email:
+    smtpHost: smtp.gmail.com
+    smtpPort: "587"
+    from: "mohammed.ehap.zean@gmail.com"
+    # Comma-separated list of recipients
+    to: "mohammed.ehap.sharaf@gmail.com"
+    username: "mohammed.ehap.zean@gmail.com"
+    # Gmail App Password (16 chars, no spaces)
+    # Override via:  --set monitoring.email.password=xxxxxxxxxxxxxxxx
+    # or a gitignored values.secret.yaml file — NEVER commit the real value!
+    password: "iktskxktmutjbmut"
+    requireTLS: true
+
+  # ── Alert thresholds ───────────────────────
+  alerts:
+    # seconds a pod must be unavailable before firing
+    podDownForSeconds: 60
+    crashLoopingForSeconds: 60
+    # number of restarts in 5 min that triggers the warning
+    highRestartsThreshold: 3
+    # seconds PVC must be un-bound before firing
+    pvcPendingForSeconds: 120
+    # repeat the same alert after this interval (e.g. 4h)
+    repeatInterval: 4h

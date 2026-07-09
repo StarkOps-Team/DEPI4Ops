@@ -1,0 +1,196 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "depi4ops.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval:     30s
+      evaluation_interval: 30s
+      scrape_timeout:      10s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager:9093"]
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    scrape_configs:
+      # ── Prometheus self-monitoring ──────────────────────────────────
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      # ── kube-state-metrics ──────────────────────────────────────────
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ["kube-state-metrics:8080"]
+
+      # ── Kubelet cAdvisor (container CPU/mem) ────────────────────────
+      - job_name: kubelet-cadvisor
+        scheme: https
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      # ── depi4ops pods ───────────────────────────────────────────────
+      - job_name: depi4ops-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["{{ .Values.namespace }}"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+  rules.yml: |
+    groups:
+      - name: depi4ops.alerts
+        rules:
+
+          # ── Payload pod unavailable ─────────────────────────────────
+          - alert: PayloadPodDown
+            expr: >
+              kube_deployment_status_replicas_available{
+                namespace="{{ .Values.namespace }}",
+                deployment="payload"
+              } < 1
+            for: {{ .Values.monitoring.alerts.podDownForSeconds }}s
+            labels:
+              severity: critical
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "🔴 Payload CMS is DOWN"
+              description: >
+                The payload deployment in namespace {{ .Values.namespace }}
+                has 0 available replicas for more than
+                {{ .Values.monitoring.alerts.podDownForSeconds }}s.
+
+          # ── MongoDB pod unavailable ─────────────────────────────────
+          - alert: MongoPodDown
+            expr: >
+              kube_deployment_status_replicas_available{
+                namespace="{{ .Values.namespace }}",
+                deployment="mongo"
+              } < 1
+            for: {{ .Values.monitoring.alerts.podDownForSeconds }}s
+            labels:
+              severity: critical
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "🔴 MongoDB is DOWN"
+              description: >
+                The mongo deployment in namespace {{ .Values.namespace }}
+                has 0 available replicas for more than
+                {{ .Values.monitoring.alerts.podDownForSeconds }}s.
+
+          # ── CrashLoopBackOff ────────────────────────────────────────
+          - alert: PodCrashLooping
+            expr: >
+              kube_pod_container_status_waiting_reason{
+                namespace="{{ .Values.namespace }}",
+                reason="CrashLoopBackOff"
+              } == 1
+            for: {{ .Values.monitoring.alerts.crashLoopingForSeconds }}s
+            labels:
+              severity: critical
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "🔴 Pod {{ "{{" }} $labels.pod {{ "}}" }} is CrashLooping"
+              description: >
+                Pod {{ "{{" }} $labels.pod {{ "}}" }} (container: {{ "{{" }} $labels.container {{ "}}" }})
+                in namespace {{ .Values.namespace }} is in CrashLoopBackOff state.
+
+          # ── High restart count ──────────────────────────────────────
+          - alert: HighContainerRestarts
+            expr: >
+              increase(
+                kube_pod_container_status_restarts_total{
+                  namespace="{{ .Values.namespace }}"
+                }[5m]
+              ) > {{ .Values.monitoring.alerts.highRestartsThreshold }}
+            for: 0m
+            labels:
+              severity: warning
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "⚠️ Container {{ "{{" }} $labels.container {{ "}}" }} restarting frequently"
+              description: >
+                Container {{ "{{" }} $labels.container {{ "}}" }} in pod {{ "{{" }} $labels.pod {{ "}}" }}
+                has restarted more than {{ .Values.monitoring.alerts.highRestartsThreshold }}
+                times in the last 5 minutes.
+
+          # ── Mongo PVC not bound ─────────────────────────────────────
+          - alert: MongoPVCNotBound
+            expr: >
+              kube_persistentvolumeclaim_status_phase{
+                namespace="{{ .Values.namespace }}",
+                persistentvolumeclaim="mongo-pvc",
+                phase="Bound"
+              } == 0
+            for: {{ .Values.monitoring.alerts.pvcPendingForSeconds }}s
+            labels:
+              severity: warning
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "⚠️ MongoDB PVC is not Bound"
+              description: >
+                PersistentVolumeClaim mongo-pvc in namespace {{ .Values.namespace }}
+                is not in Bound state for more than
+                {{ .Values.monitoring.alerts.pvcPendingForSeconds }}s.
+                MongoDB may lose data or fail to start.
+
+          # ── Payload service has no endpoints ────────────────────────
+          - alert: PayloadNoEndpoints
+            expr: >
+              kube_endpoint_address_available{
+                namespace="{{ .Values.namespace }}",
+                endpoint="payload-service"
+              } == 0
+            for: {{ .Values.monitoring.alerts.podDownForSeconds }}s
+            labels:
+              severity: critical
+              namespace: {{ .Values.namespace }}
+            annotations:
+              summary: "🔴 Payload service has no ready endpoints"
+              description: >
+                The payload-service in namespace {{ .Values.namespace }}
+                has 0 ready endpoints for more than
+                {{ .Values.monitoring.alerts.podDownForSeconds }}s.
+                Traffic is not being served.
+{{- end }}
