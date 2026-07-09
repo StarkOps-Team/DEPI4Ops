@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "depi4ops.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.mongo.persistence.accessMode }}
+  {{- if .Values.mongo.persistence.storageClass }}
+  storageClassName: {{ .Values.mongo.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.mongo.persistence.size }}

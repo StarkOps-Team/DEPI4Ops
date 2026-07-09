@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payload-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "depi4ops.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.payload.service.type }}
+  selector:
+    app: payload
+  ports:
+    - port: {{ .Values.payload.service.port }}
+      targetPort: {{ .Values.payload.service.targetPort }}

@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payload
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "depi4ops.labels" . | nindent 4 }}
+    app: payload
+spec:
+  replicas: {{ .Values.payload.replicaCount }}
+  selector:
+    matchLabels:
+      app: payload
+  template:
+    metadata:
+      labels:
+        app: payload
+    spec:
+      containers:
+        - name: payload
+          image: "{{ .Values.payload.image.repository }}:{{ .Values.payload.image.tag }}"
+          imagePullPolicy: {{ .Values.payload.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.payload.service.targetPort }}
+          env:
+            - name: PORT
+              value: {{ .Values.payload.env.PORT | quote }}
+            - name: HOSTNAME
+              value: {{ .Values.payload.env.HOSTNAME | quote }}
+          envFrom:
+            - secretRef:
+                name: payload-secret
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.payload.probes.readiness.path }}
+              port: {{ .Values.payload.probes.readiness.port }}
+            initialDelaySeconds: {{ .Values.payload.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.payload.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.payload.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.payload.probes.liveness.path }}
+              port: {{ .Values.payload.probes.liveness.port }}
+            initialDelaySeconds: {{ .Values.payload.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.payload.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.payload.probes.liveness.failureThreshold }}
+          {{- with .Values.payload.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

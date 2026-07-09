@@ -1,0 +1,85 @@
+# ──────────────────────────────────────────────
+# Global
+# ──────────────────────────────────────────────
+nameOverride: ""
+fullnameOverride: ""
+
+namespace: depi4ops
+
+# ──────────────────────────────────────────────
+# Payload CMS app
+# ──────────────────────────────────────────────
+payload:
+  replicaCount: 1
+
+  image:
+    repository: depi4ops-payload
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    type: LoadBalancer
+    port: 3000
+    targetPort: 3000
+
+  env:
+    PORT: "3000"
+    HOSTNAME: "0.0.0.0"
+
+  # Values injected via the Secret (see secret section below)
+  # DATABASE_URL and PAYLOAD_SECRET come from the secret
+
+  probes:
+    readiness:
+      path: /
+      port: 3000
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      failureThreshold: 6
+    liveness:
+      path: /
+      port: 3000
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      failureThreshold: 6
+
+  resources: {}
+  #  limits:
+  #    cpu: 500m
+  #    memory: 512Mi
+  #  requests:
+  #    cpu: 250m
+  #    memory: 256Mi
+
+# ──────────────────────────────────────────────
+# MongoDB
+# ──────────────────────────────────────────────
+mongo:
+  replicaCount: 1
+
+  image:
+    repository: mongo
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    port: 27017
+    targetPort: 27017
+
+  storageEngine: wiredTiger
+
+  persistence:
+    enabled: true
+    size: 2Gi
+    accessMode: ReadWriteOnce
+    # storageClass: ""   # leave empty to use cluster default
+
+  resources: {}
+
+# ──────────────────────────────────────────────
+# Secret  (stringData – stored as-is in the chart;
+#          override with --set or a values override file)
+# ──────────────────────────────────────────────
+secret:
+  databaseUrl: "mongodb://mongo:27017/StarkOps"
+  payloadSecret: "5fc2dc3269d77fcd43e46ef5"

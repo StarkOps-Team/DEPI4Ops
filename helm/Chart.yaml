@@ -1,0 +1,12 @@
+apiVersion: v2
+name: depi4ops
+description: A Helm chart for deploying the DEPI4Ops Payload CMS + MongoDB stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - payload
+  - mongodb
+  - cms
+maintainers:
+  - name: StarkOps Team
