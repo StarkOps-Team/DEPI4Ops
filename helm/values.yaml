@@ -117,7 +117,7 @@ monitoring:
     # Gmail App Password (16 chars, no spaces)
     # Override via:  --set monitoring.email.password=xxxxxxxxxxxxxxxx
     # or a gitignored values.secret.yaml file — NEVER commit the real value!
-    password: "iktskxktmutjbmut"
+    password: ""
     requireTLS: true
 
   # ── Alert thresholds ───────────────────────
