@@ -97,7 +97,7 @@ pipeline {
         stage('Artifactory') {
             steps {
                 // Create deployment package excluding git files
-                powershell "Compress-Archive -Path * -Exclude .git -DestinationPath deploy.zip -Force"
+                bat "tar.exe -a -c -f deploy.zip --exclude=.git *"
                 // Archive the artifact in Jenkins
                 archiveArtifacts artifacts: 'deploy.zip', fingerprint: true
             }
